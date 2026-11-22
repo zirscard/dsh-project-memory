@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "dsh://project-memory/entry.schema.json",
+  "title": "DSH Project Memory Entry v1",
+  "description": "单条项目记忆的契约。所有写入必须通过本 schema 校验；未通过则拒绝落盘（不产生半条记忆）。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "type", "title", "as_of", "observed_at", "source", "status", "confidence"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^MEM-\\d{8}-\\d{4}$",
+      "description": "记忆 ID，形如 MEM-20261026-0001。写入时由引擎分配，不可自造。"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["fact", "decision", "constraint", "procedure", "risk", "open_question", "entity", "metric"],
+      "description": "记忆类型：fact=已核实事实；decision=已作出的决策；constraint=硬约束/红线；procedure=可复用做法；risk=风险与脆弱点；open_question=未决问题；entity=主体档案；metric=口径/指标定义。"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 120,
+      "description": "一句话结论。检索与注入的主键，不得写成流水账。"
+    },
+    "scope": {
+      "type": "string",
+      "maxLength": 40,
+      "default": "general",
+      "description": "归属域，如 M1 / M2 / M3 / M5 / general。"
+    },
+    "scene": {
+      "type": "string",
+      "maxLength": 40,
+      "description": "对话场景标签：这条记忆产出于/关联哪一次对话场景，如 L3分析 / CTO访谈 / GP评分卡。自由字符串（不是工作区 ID）。缺省表示未标注场景。"
+    },
+    "as_of": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}([T ]\\d{2}:\\d{2}(:\\d{2})?(Z|[+-]\\d{2}:?\\d{2})?)?$",
+      "description": "事件轴：事实生效时间（valid_at）。缺失即拒绝写入。回放时与 observed_at 同时过滤。"
+    },
+    "observed_at": {
+      "type": "string",
+      "description": "摄入轴：事实被本机观测到的时间（created_at / observed_at）。与 as_of 分离，用于区分「事情何时发生」与「我何时知道」。PIT 回测必须按本轴截断，否则会把未披露的信息泄漏进回测。"
+    },
+    "source": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "description": "可追溯来源：文件路径#锚点、URL、或会话/命令引用。缺失即拒绝写入（不允许无源记忆）。"
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1, "maxLength": 40 },
+      "default": [],
+      "description": "检索标签。中文标签不做分词，直接按子串匹配。"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "superseded", "stale", "draft", "retracted"],
+      "default": "active",
+      "description": "生命周期状态。superseded 的旧条目不删除，保留因果链以支持复算。"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.8,
+      "description": "置信度。低于 0.5 的记忆不得进入 core.md。"
+    },
+    "supersedes": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^MEM-\\d{8}-\\d{4}$" },
+      "default": [],
+      "description": "本条取代的记忆 ID 列表（向前指）。被取代方 status 置为 superseded 并回填 superseded_by。"
+    },
+    "superseded_by": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^MEM-\\d{8}-\\d{4}$" },
+      "default": [],
+      "description": "取代本条的记忆 ID（向后指）。与 supersedes 互为逆，构成可审计的替换链。"
+    },
+    "body": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000,
+      "description": "正文。结论先行，≤ 300 字为宜。"
+    }
+  },
+  "x-invariants": [
+    "source 必填：无来源的记忆不得落盘（防止编造）。",
+    "as_of 必填：每条记忆必须锚定事实生效时间（事件轴），否则无法做 PIT 回放（防未来数据泄漏）。",
+    "双时间轴：as_of = 事实何时成立；observed_at = 我何时知道。回放「当时他知道什么」必须按 observed_at 截断，只按 as_of 截断会泄漏未来。",
+    "不物理删除：被推翻的记忆只改 status，保留 supersedes/superseded_by 链，保证结论可复算。",
+    "id 唯一：由引擎按日期序分配，重复 ID 直接拒绝。",
+    "core.md 只收录 confidence >= 0.5 且 status == active 的条目。",
+    "注入前净化：零宽字符、仿冒标签（<system> 等）与 HTML 注释在注入前被中和；记忆内容一律标注为数据而非指令。",
+    "唯一根：记忆数据只允许存在于 $DSH_MEMORY_HOME/<workspace-key>/；工作区内不得出现记忆目录（doctor 检测 stray_workspace_dirs）。",
+    "真相与派生分层：entries/*.md 与 log.jsonl 是真相源；index.json 与 core.md 是派生物，可由 reindex / rebuild-core 重建，verify 检测漂移，不得手改。",
+    "指针不含内容：活动工作区指针只存路径与 mtime，不存记忆正文——否则同一内容会出现第二份副本且会与真相源不一致。",
+    "出库唯一出口：export 产出单文件供提交/分享/备份；不得把记忆目录复制到仓库或云盘的各处。"
+  ]
+}

@@ -1,0 +1,6 @@
+# dsh-project-memory bundle patch: one host-only row (agent tool + dynamic system-prompt section).
+# No client half, no routes, no ledger — everything runs in the host process and
+# shells out to a stdlib-only Python engine (core/memory.py).
+- insert:
+    - id: dsh-project-memory
+      name: dsh-project-memory

@@ -1,0 +1,28 @@
+{
+  "name": "dsh-project-memory",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DSH 项目记忆插件：为每个工作区提供跨会话持久记忆（事实/决策/约束/做法/风险）。存储为纯 Markdown + YAML frontmatter（可 diff、可 git 版本化、无向量库无外部服务）；每条记忆强制带 source（可追溯来源）与 asOf（事实生效时间，PIT 锚点），无源或无时间锚点的记忆被契约拒绝；冲突走 supersede 替换链而不删除，保证可复算；recall 支持按时间点过滤，leak-check 做未来数据泄漏审计；核心记忆经动态 system prompt 段落每轮自动注入会话。",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "runner.js",
+    "core/",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  }
+}
